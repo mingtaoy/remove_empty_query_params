@@ -1,4 +1,5 @@
 use http::Request;
+use percent_encoding::{percent_encode, AsciiSet, CONTROLS};
 use std::borrow::Cow;
 use std::convert::TryInto;
 
@@ -62,6 +63,8 @@ fn needs_modification(q: &str) -> bool {
 }
 
 /// Returns `query` or a version of `query` where all empty parameters are removed.
+const QUERY_SET: &AsciiSet = &CONTROLS.add(b' ').add(b'"').add(b'#').add(b'<').add(b'>');
+
 pub fn remove_empty_query_params(q: &str) -> Cow<'_, str> {
     if !needs_modification(q) {
         Cow::Borrowed(q)
@@ -69,7 +72,13 @@ pub fn remove_empty_query_params(q: &str) -> Cow<'_, str> {
         Cow::Owned(
             form_urlencoded::parse(q.as_bytes())
                 .filter(|(_, v)| v.len() > 0)
-                .map(|(k, v)| format!("{}={}", k, v))
+                .map(|(k, v)| {
+                    format!(
+                        "{}={}",
+                        percent_encode(k.as_bytes(), QUERY_SET).to_string(),
+                        percent_encode(v.as_bytes(), QUERY_SET).to_string()
+                    )
+                })
                 .collect::<Vec<_>>()
                 .as_slice()
                 .join("&"),
